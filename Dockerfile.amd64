@@ -69,8 +69,7 @@ RUN apt-get update \
     && dpkg-query -W -f='${Package}\n' > /tmp/a.txt \
     && apt-get install -y python3-pip python3-dev build-essential \
 	#&& pip3 install setuptools wheel && pip3 install -r /tmp/requirements.txt \
-    && ln -s /usr/bin/python3 /usr/local/bin/python
-
+    && ln -s /usr/bin/python3 /usr/local/bin/python \
 
 # install wine
 RUN dpkg --add-architecture i386 \
@@ -81,21 +80,51 @@ RUN dpkg --add-architecture i386 \
     #&& apt install aptitude -y
     #&& aptitude install winehq-stable -y
 
-### INSTALL GOOGLE CHROME
-COPY chrome-installation/installer.sh /root/chrome-installer.sh
-RUN bash /root/chrome-installer.sh
-
 COPY MetaTrader.zip /home/ubuntu/MetaTrader.zip
 
 RUN cd /home/ubuntu && unzip MetaTrader.zip
 
+
+### INSTALL CHROMIUM
+COPY chrome-installation/installer.sh /root/chrome-installer.sh
+RUN bash /root/chrome-installer.sh && rm /root/chrome-installer.sh
+
+#UI Vision does neither run well on Chromium nor on Firefox. It works best on Google Chrome
+RUN wget https://dl.google.com/linux/direct/google-chrome-stable_current_amd64.deb \
+    && sudo dpkg -i google-chrome-stable_current_amd64.deb
+#on the machine you can run the following command to star the browser:
+#google-chrome 
+
+### INSTALL XMODULES
+RUN cd /root \
+    #https://ui.vision/rpa/x/download
+    && wget https://download.ui.vision/x/ui.vision-xmodules-linux-v202102.AppImage \
+    && chmod +x ui.vision-xmodules-linux-v202102.AppImage \
+    && ./ui.vision-xmodules-linux-v202102.AppImage --appimage-extract \
+    && cp -r squashfs-root/usr/xmodules ./xmodules \
+    && rm -rf squashfs-root \
+    && rm -rf ./ui.vision-xmodules-linux-v202102.AppImage \
+    && cd xmodules \
+    && bash 1install.sh
+
+RUN cd /root \
+    ## find latest version here: https://github.com/mozilla/geckodriver/releases/
+    && wget https://github.com/mozilla/geckodriver/releases/download/v0.29.0/geckodriver-v0.29.0-linux64.tar.gz \
+    && tar -xvzf geckodriver* \
+    && chmod +x geckodriver \
+    && sudo mv geckodriver /usr/local/bin/ \
+    && rm geckodriver*
+
+
 COPY rootfs /
 
+RUN pip3 install selenium boto3 pandas
 
 #EXPOSE 80
 WORKDIR /root
 ENV HOME=/home/ubuntu \
-    SHELL=/bin/bash
+    SHELL=/bin/bash \
+    DISPLAY=:01
 #HEALTHCHECK --interval=30s --timeout=5s CMD curl --fail http://127.0.0.1:6079/api/health
 ENTRYPOINT ["/startup.sh"]
 
